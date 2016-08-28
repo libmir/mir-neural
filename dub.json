@@ -1,5 +1,6 @@
 {
     "name": "mir_rbf",
+    "license": "BSL-1.0",
     "dependencies": {
         "mir": "~master",
         "scid": "~master",
