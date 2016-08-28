@@ -1,0 +1,8 @@
+{
+    "name": "mir_rbf",
+    "dependencies": {
+        "mir": "~master",
+        "scid": "~master",
+        "ggplotd": "~>1.0.0"
+    }
+}
