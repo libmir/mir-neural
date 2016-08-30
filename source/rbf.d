@@ -12,13 +12,25 @@ import mir.glas : GlasContext, gemm;
 alias RadialBasisFunction(T) = T delegate(in T input);
 
 /// Gaussian radial basis function.
-T gaussian(T)(in T s) if (isFloatingPoint!T) { return exp(-s); };
+T gaussian(T)(in T s) if (isFloatingPoint!T)
+{
+    return exp(-s);
+}
 /// Cauchy radial basis function.
-T cauchy(T)(in T s) if (isFloatingPoint!T) { return T(1.0) / (s + T(1.0)); };
+T cauchy(T)(in T s) if (isFloatingPoint!T)
+{
+    return T(1.0) / (s + T(1.0));
+}
 /// Multiquadric radial basis function.
-T multiquadric(T)(in T s) if (isFloatingPoint!T) { return sqrt(s + T(1.0)); };
+T multiquadric(T)(in T s) if (isFloatingPoint!T)
+{
+    return sqrt(s + T(1.0));
+}
 /// Inverse multiquadric radial basis function.
-T inverseMultiquadric(T)(in T s) if (isFloatingPoint!T) { return T(1.0) / sqrt(s + T(1.0)); };
+T inverseMultiquadric(T)(in T s) if (isFloatingPoint!T)
+{
+    return T(1.0) / sqrt(s + T(1.0));
+}
 
 // --------------------------------------------------------------------------------------------
 
@@ -35,35 +47,39 @@ struct RbfNetwork(T = double, alias rbf = gaussian!T) if (isFloatingPoint!T)
 {
     alias Vector = Slice!(1, T*);
     alias Matrix = Slice!(2, T*);
-    alias TrainingData = Tuple!(Vector, "centers", Vector, "values");
+    alias TrainingData = Tuple!(Matrix, "centers", Matrix, "values");
 
     private
     {
         auto glas = new GlasContext(); // glas context used for matrix operations
 
         TrainingData _data; // training data.
-        Vector _weights; // calculated training weights (hidden layer of the network).
+        Matrix _weights; // calculated training weights (hidden layer of the network).
         T _radius; // radius of a basis function.
         T _lambda; // regularization value for ridge regression.
     }
 
     @property
     {
-        auto radius(in T value) {
+        auto radius(in T value)
+        {
             this._radius = value;
             return this;
         }
 
-        auto lambda(in T value) {
+        auto lambda(in T value)
+        {
             this._lambda = value;
             return this;
         }
 
-        auto radius() const {
+        auto radius() const
+        {
             return this._radius;
         }
 
-        auto lambda() const {
+        auto lambda() const
+        {
             return this._lambda;
         }
     }
@@ -77,28 +93,47 @@ struct RbfNetwork(T = double, alias rbf = gaussian!T) if (isFloatingPoint!T)
      +/
     auto train(Vector x, Vector y)
     {
+        return train(x.reshape(x.length, 1), y.reshape(y.length, 1));
+    }
+
+    /// ditto
+    auto train(Matrix x, Matrix y)
+    {
         this._data.centers = x.slice;
         this._data.values = y.slice;
 
-        auto H = design(x, this._data.centers);
+        auto H = design(x, x);
         this._weights = calcWeights(H);
 
         return this;
     }
-
     /++
      Perform data fitting based on previous neural network training.
      +/
     Vector fit(Vector qx)
     {
-        auto p = this._data.centers.length;
-        auto pq = qx.length;
-        auto Ht = design(qx, this._data.centers);
-        auto ft = slice!double([pq, 1], 0.0);
-        
-        glas.gemm(ft, 1.0, Ht, this._weights.reshape(p, 1));
-
+        auto ft = fit(qx.reshape(qx.length, 1));
         return ft.reshape(qx.length);
+    }
+
+    /// ditto
+    Matrix fit(Matrix qx)
+    in 
+    {
+        assert(qx.length!1 == _data.centers.length!1);
+    }
+    body
+    {
+        auto p = this._data.centers.length!0;
+        auto d = this._data.values.length!1;
+        auto pq = qx.length!0;
+
+        auto Ht = design(qx, this._data.centers);
+        auto ft = slice!T([pq, d], 0.0);
+
+        glas.gemm(ft, 1.0, Ht, this._weights);
+
+        return ft;
     }
 
     private
@@ -106,49 +141,67 @@ struct RbfNetwork(T = double, alias rbf = gaussian!T) if (isFloatingPoint!T)
         // Create the RBF design matrix
         Matrix design(Vector x, Vector c)
         {
-            auto p = x.length;
-            auto m = c.length;
-            auto rr = radius * radius;
+            return design(x.reshape(x.length, 1), c.reshape(c.length, 1));
+        }
 
+        Matrix design(Matrix x, Matrix c)
+        in
+        {
+            assert(x.length!1 == c.length!1);
+        }
+        body
+        {
+            immutable p = x.length;
+            immutable m = c.length;
             auto H = slice!T(p, m);
-            auto d = slice!T(p);
-            auto s = slice!T(p, p);
+            auto h = slice!T(p);
 
             foreach (j; 0 .. m)
             {
-                s[] = 0.0;
-
-                assumeSameStructure!("d", "x")(d, x).ndEach!(v => v.d = v.x - c[j], Yes.vectorized);
-                auto dm = d.reshape(p, 1);
-
-                glas.gemm(s, 1.0, dm, dm.transposed);
-                auto sd = s.diagonal;
-
-                auto h = H[0 .. $, j];
-                foreach (i; 0 .. p)
-                {
-                    h[i] = rbf(sd[i] / rr);
-                }
+                designColumn(h, x, c[j]);
+                H[0 .. $, j] = h[];
             }
+
             return H;
         }
 
-        // Calculate weights using global ridge regression method with manualy determined regularization parameter.
+        void designColumn(Vector h, Matrix x, Vector c)
+        {
+            immutable d = x.length!1;
+            immutable p = x.length;
+            immutable rr = radius * radius;
+
+            foreach (i; 0 .. p)
+            {
+                auto v = T(0.0);
+                foreach (ii; 0 .. d)
+                {
+                    auto dist = x[i][ii] - c[ii];
+                    v += dist * dist;
+                }
+                if (d > 1)
+                    v = sqrt(v);
+                h[i] = rbf(v / rr);
+            }
+        }
+
+        // Calculate weights using global ridge regression method
         auto calcWeights(Slice!(2, T*) H)
         {
-            auto yl = _data.values.length;
+            auto yl = _data.values.length!0;
+            auto d = _data.values.length!1;
             auto A = slice!T([H.length!1, H.length!1], 0.0); // variance matrix
-            auto w = slice!T([yl, 1], 0); // resulting weight values
-            auto AHy = slice!T([yl, 1], 0);
+            auto w = slice!T([yl, d], 0); // resulting weight values
+            auto AHy = slice!T([yl, d], 0);
 
             glas.gemm(A, 1.0, H.transposed, H);
             A.diagonal[] += lambda;
             A = invert(A);
 
-            glas.gemm(AHy, 1.0, H.transposed, _data.values.reshape(yl, 1));
+            glas.gemm(AHy, 1.0, H.transposed, _data.values);
             glas.gemm(w, 1.0, A, AHy);
 
-            return w.reshape(yl);
+            return w;
         }
 
         // Invert matrix - wraps scid.linalg.invert
