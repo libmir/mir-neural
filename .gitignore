@@ -2,3 +2,8 @@
 ./mir_rbf
 ./rbf_fit.png
 ./.dub/
+.dub/
+dub.selections.json
+dub.userprefs
+mir_rbf
+mir.experimental.model.rbf

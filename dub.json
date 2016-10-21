@@ -1,10 +1,15 @@
 {
-    "name": "mir_rbf",
-    "license": "BSL-1.0",
+    "name": "mir.experimental.model.rbf",
+    "authors": [
+        "Relja Ljubobratovic"
+    ],
+    "description": "A minimal D application.",
+    "copyright": "Copyright © 2016, Relja Ljubobratovic",
+    "dflags-ldc": ["-mcpu=native"],
     "dependencies": {
-        "mir": "~>0.16.0-beta2",
-        "dcv": "~>0.1.1",
-        "scid": "~>0.3.0",
-        "ggplotd": "~>0.9.4"
+        "mir": "~>0.20.0",
+        "dcv": "~master",
+        "scid": "0.3.0",
+        "ggplotd": "0.9.4"
     }
 }
