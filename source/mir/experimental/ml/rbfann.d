@@ -8,22 +8,36 @@ import mir.ndslice.selection : reshape;
 
 import mir.experimental.model.rbf;
 
+
+class ModelNotTrainedException : Exception
+{
+    ///
+    this(
+        string msg,
+        string file = __FILE__,
+        uint line = cast(uint)__LINE__,
+        Throwable next = null
+        ) pure nothrow @nogc @safe
+    {
+        super(msg, file, line, next);
+    }
+}
+
 /++
 Radial basis function artificial neural network model.
 
 Single-layered, linear, non-parametric artificial neural network model.
 
 Params:
-    T = Value type used. Default is double.
+    T = Value type used, has to be floating point. Default is double.
     rbf = Radial basis function used. Default is gaussian.
 
 See:
     mir.experimental.model.rbf
 +/
-struct RbfNetwork(T = double, alias rbf = gaussian!T)
+struct RbfNetwork(T = double, alias rbf = gaussian)
+    if (isFloatingPoint!T)
 {
-    static assert (isFloatingPoint!T, "RbfNetwork value type has to be a floating point.");
-
 private:
 
     alias Vector = Slice!(1, T*);
@@ -39,34 +53,43 @@ public:
 
     @disable this();
 
+    /++
+    Default constructor of the model.
+
+    Params:
+        radius = Radius value of radial basis function, used in both training, and fitting.
+        lambda = Regularization parameter.
+    +/
     this(T radius = 1.0, T lambda = 1e-4)
+    in
+    {
+        assert(radius > 0.0, "Radius value has to be larger than 0.");
+    }
+    body
     {
         this._radius = radius;
         this._lambda = lambda;
     }
 
-    ref radius(in T value) @property
-    {
-        this._radius = value;
-        return this;
-    }
-
-    ref lambda(in T value) @property
-    {
-        this._lambda = value;
-        return this;
-    }
-
+    /++
+    Returns: radius value used by this model.
+    +/
     auto radius() const @property
     {
         return this._radius;
     }
 
+    /++
+    Returns: regularization value used by this model.
+    +/
     auto lambda() const @property
     {
         return this._lambda;
     }
 
+    /++
+    Check if this model has been previously trained.
+    +/
     auto isTrained() const @property
     {
         return !_centers.empty;
@@ -76,26 +99,23 @@ public:
      Train neural network with given data.
 
      Params:
-         x = Center values, data node positions.
-         y = Training value, outcome of trained function at x center position.
+         centers = Center values, data node positions (m-by-n).
+         values = Training value, outcome of trained function at center position (m-by-p).
      Returns:
          Trained model.
     +/
-    ref train(Vector x, Vector y)
-    {
-        return train(x.reshape(x.length, 1), y.reshape(y.length, 1));
-    }
-
-    /// ditto
-    ref train(Matrix x, Matrix y)
+    ref train(Matrix centers, Matrix values)
     in
     {
-        assert(x.length == y.length);
+        assert(centers.length == values.length);
     }
     body
     {
-        this._centers = x.slice;
-        this._weights = slice!T(y.shape);
+        alias x = centers;
+        alias y = values;
+
+        _centers = x.slice;
+        _weights = slice!T(y.shape);
 
         auto H = slice!T(x.length, x.length);
 
@@ -105,33 +125,59 @@ public:
         return this;
     }
 
-    /++
-     Perform data fitting based on previous neural network training.
-    +/
-    Vector fit(Vector qx)
+    /// ditto
+    ref train(Vector centers, Vector values)
     {
-        auto ft = fit(qx.reshape(qx.length, 1));
-        return ft.reshape(qx.length);
+        return train(centers.reshape(centers.length, 1), values.reshape(values.length, 1));
     }
 
-    /// ditto
-    Matrix fit(Matrix qx)
+    /++
+     Perform data fitting based on previous neural network training.
+
+     Params:
+        queryCenters = Query center values to fit trained model to.
+
+    Returns:
+        Resulting fitting values matrix, of same row size as query centers
+        and column 
+    +/
+    Matrix fit(Matrix queryCenters)
     in
     {
-        assert(qx.length!1 == _centers.length!1);
+        assert(queryCenters.length!1 == _centers.length!1,
+                "Query centers' dimensionality is not equal with input centers.");
     }
     body
     {
+        if (!isTrained)
+        {
+            throw new ModelNotTrainedException("Model used for data fitting has not been trained.");
+        }
+
+        alias qx = queryCenters;
+        alias w = _weights;
+        alias x = _centers;
+
         auto pq = qx.length;
-        auto p = this._weights.length!0;
-        auto d = this._weights.length!1;
+        auto p = w.length!0;
+        auto d = w.length!1;
         auto Ht = slice!T(pq, p);
         auto ft = slice!T(pq, d);
 
-        designRbf!rbf(qx, this._centers, _radius, Ht);
+        designRbf!rbf(qx, x, _radius, Ht);
 
-        gemm(1.0, Ht, this._weights, 0.0, ft);
+        gemm(1.0, Ht, w, 0.0, ft);
 
         return ft;
     }
+
+    /// ditto
+    Vector fit(Vector queryCenters)
+    {
+        auto ft = fit(queryCenters.reshape(queryCenters.length, 1));
+        return ft.reshape(queryCenters.length);
+    }
+
+    // void save();
+    // void load();
 }

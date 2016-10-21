@@ -101,7 +101,7 @@ void networkExample_1d()
     auto yt = xt.map!(v => sin(10.0 * v)).array.sliced(pt);
 
     // Create, setup, and train the network model with data defined above.
-    auto network = RbfNetwork!(double, cauchy!double)(radius, lambda).train(x, y);
+    auto network = RbfNetwork!(double, cauchy)(radius, lambda).train(x, y);
 
     // fit query data to trained network.
     auto ft = network.fit(xt);
