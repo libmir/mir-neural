@@ -9,7 +9,7 @@
     "dependencies": {
         "mir": "~>0.20.0",
         "dcv": "~master",
-        "scid": "0.3.0",
         "ggplotd": "0.9.4"
-    }
+    },
+    "libs": ["lapack"]
 }

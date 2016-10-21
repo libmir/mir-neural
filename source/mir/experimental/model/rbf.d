@@ -11,7 +11,7 @@ import mir.internal.utility : isVector;
 import mir.ndslice.slice;
 import mir.glas.l3 : gemm;
 
-//nothrow @nogc: will be with mir.glas inversion, scid is not nothrow @nogc
+nothrow @nogc:
 
 // Radial basis functions.
 pure @fastmath
@@ -268,18 +268,67 @@ enum weightDataPrep = q{
     auto Hty = Htybuf.slice;
 };
 
-// Invert matrix - wraps scid.linalg.invert
-void invert(T)(Slice!(2, T*) matrix)
+// lapack invert
+void invert(T)(Slice!(2, T*) m) @nogc nothrow
+in
 {
-    import std.array : array;
-
-    import scid.matrix;
-    import scid.linalg : invert = invert;
-
-    assert(matrix.length!0 == matrix.length!1);
-
-    auto s = matrix.length!0;
-    MatrixView!T v = MatrixView!T(matrix.ptr[0 .. s * s], s, s);
-
-    invert(v);
+    assert (m.length!0 == m.length!1, "invert: can only invert square matrices");
 }
+body
+{
+    import std.experimental.allocator.mallocator : Mallocator;
+
+    alias allocator = Mallocator.instance;
+
+
+    static if (is(T == float))
+    {
+        alias getrf = sgetrf_;
+        alias getri = sgetri_;
+    }
+    else static if (is(T == double))
+    {
+        alias getrf = dgetrf_;
+        alias getri = dgetri_;
+    }
+    else
+    {
+        static assert(0);
+    }
+
+    int l = cast(int)m.length;
+    int info;
+    int lwork = -1;
+
+    T optimal;
+
+    // Do workspace query
+    getri(&l, null, &l, null, &optimal, &lwork, &info);
+
+    lwork = cast(int)optimal;
+
+    assert(lwork > 0);
+
+    // Allocate workspace memory.
+    int* ipiv = cast(int*) allocator.allocate(l*int.sizeof);
+    T* work = cast(T*) allocator.allocate(lwork*T.sizeof);
+
+    scope(exit)
+    {
+        allocator.deallocate(cast(void[])ipiv[0 .. l]);
+        allocator.deallocate(cast(void[])work[0 .. lwork]);
+    }
+
+    getrf(&l, &l, m.ptr, &l, ipiv, &info);
+    getri(&l, m.ptr, &l, ipiv, work, &lwork, &info);
+
+    assert (info >= 0);
+    return;
+}
+
+extern(C) nothrow @nogc:
+
+void sgetrf_(int *m, int *n, float *a, int *lda, int *ipiv, int *info);
+void dgetrf_(int *m, int *n, double *a, int *lda, int *ipiv, int *info);
+void sgetri_(int *n, float *a, int *lda, int *ipiv, float *work, int *lwork, int *info);
+void dgetri_(int *n, double *a, int *lda, int *ipiv, double *work, int *lwork, int *info);
