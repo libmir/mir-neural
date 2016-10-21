@@ -99,8 +99,13 @@ Params:
         radius per center. In vector case must be size of p.
     design = Output design matrix (m-by-n).
 +/
-void designRbf(alias rbf, T, Radii)(Slice!(2, const(T)*) centers, Slice!(2, const(T)*) data,
-        Radii radii, Slice!(2, T*) design) if (hasRbfInterface!rbf)
+void designRbf(alias rbf, T, Radii)
+(
+    Slice!(2, const(T)*) centers,
+    Slice!(2, const(T)*) data,
+    Radii radii,
+    Slice!(2, T*) design
+) if (isFloatingPoint!T && hasRbfInterface!rbf)
 in
 {
     assert(data.length!1 == centers.length!1, "Input data and centers have to be of same dimension.");
@@ -138,8 +143,13 @@ body
 /++
 Calculate single column of RBF design matrix.
 +/
-void designRbf(alias rbf, T, R)(Slice!(2, const(T)*) center, Slice!(1, const(T)*) data, R radius,
-        Slice!(1, T*) design) if (hasRbfInterface!rbf)
+void designRbf(alias rbf, T, R)
+(
+    Slice!(2, const(T)*) center,
+    Slice!(1, const(T)*) data,
+    R radius,
+    Slice!(1, T*) design
+) if (isFloatingPoint!T && hasRbfInterface!rbf)
 in
 {
     assert(design.length == center.length);
@@ -181,7 +191,12 @@ Params:
     design = Design matrix. (n-by-p, where p is point dimensionality of centers).
     weights = Output weight matrix (m-by-n);
 +/
-void basicWeights(T)(Slice!(2, const(T)*) values, Slice!(2, const(T)*) design, Slice!(2, T*) weights)
+void basicWeights(T)
+(
+    Slice!(2, const(T)*) values,
+    Slice!(2, const(T)*) design,
+    Slice!(2, T*) weights
+) if (isFloatingPoint!T)
 in
 {
     assert(weights.shape == values.shape);
@@ -208,7 +223,13 @@ Params:
     weights = Output weight matrix (m-by-n);
 +/
 
-void ridgeGlobalWeights(T)(Slice!(2, const(T)*) values, Slice!(2, const(T)*) design, T lambda, Slice!(2, T*) weights)
+void ridgeGlobalWeights(T)
+(
+    Slice!(2, const(T)*) values,
+    Slice!(2, const(T)*) design,
+    T lambda,
+    Slice!(2, T*) weights
+) if (isFloatingPoint!T)
 in
 {
     assert(weights.shape == values.shape);
@@ -238,8 +259,13 @@ Params:
     weights = Output weight matrix (m-by-n);
 +/
 
-void ridgeLocalWeights(T)(Slice!(2, const(T)*) values, Slice!(2, const(T)*) design, Slice!(1,
-        const(T)*) lambdas, Slice!(2, T*) weights)
+void ridgeLocalWeights(T)
+(
+    Slice!(2, const(T)*) values,
+    Slice!(2, const(T)*) design,
+    Slice!(1, const(T)*) lambdas,
+    Slice!(2, T*) weights
+) if(isFloatingPoint!T)
 in
 {
     assert(weights.shape == values.shape);
