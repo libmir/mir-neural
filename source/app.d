@@ -61,7 +61,7 @@ void modelExample()
 
     // training
     designRbf!rbf(x, x, radius, H);
-    rigdeGlobalWeights(y, H, lambda, w);
+    ridgeGlobalWeights(y, H, lambda, w);
 
     // estimation (interpolation)
     designRbf!rbf(q, x, radius, Hq);

@@ -104,8 +104,8 @@ void designRbf(alias rbf, T, R)
 (
     Slice!(2, const(T)*) center,
     Slice!(1, const(T)*) data,
-    R radius
-    Slice!(1, T*) design,
+    R radius,
+    Slice!(1, T*) design
 )
 in
 {
@@ -150,7 +150,7 @@ Params:
     weights = Output weight matrix (m-by-n);
 +/
 
-void rigdeGlobalWeights(T)
+void ridgeGlobalWeights(T)
 (
     Slice!(2, const(T)*) values,
     Slice!(2, const(T)*) design,

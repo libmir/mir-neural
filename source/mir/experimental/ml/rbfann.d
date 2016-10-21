@@ -100,7 +100,7 @@ public:
         auto H = slice!T(x.length, x.length);
 
         designRbf!rbf(x, x, _radius, H);
-        rigdeGlobalWeights(y, H, _lambda, _weights);
+        ridgeGlobalWeights(y, H, _lambda, _weights);
 
         return this;
     }
