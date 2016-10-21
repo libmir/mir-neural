@@ -79,23 +79,11 @@ nothrow @nogc @safe pure unittest
     // should these be static asserts?
     assert(allSatisfy!(hasRbfInterface, RBFs));
 
-    void nonRbf1()
-    {
-    }
-
-    float nonRbf2(float)
-    {
-        return float.init;
-    }
-
-    int nonRbf3(int)
-    {
-        return int.init;
-    }
-
-    void nonRbf4(float, float)
-    {
-    }
+    // non-RBFs
+    void function() nonRbf1;
+    float function(float) nonRbf2;
+    int function(int) nonRbf3;
+    void function(float, float) nonRbf4;
 
     assert(!hasRbfInterface!nonRbf1);
     assert(!hasRbfInterface!nonRbf2);
