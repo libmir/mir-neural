@@ -1,15 +1,12 @@
 module mir.experimental.model.rbf;
 
 import std.traits : isFloatingPoint;
-import std.experimental.allocator.mallocator : AlignedMallocator;
 
 import ldc.attributes : fastmath;
 
-import mir.ndslice.iteration : transposed;
-import mir.ndslice.selection : diagonal;
-import mir.internal.utility : isVector;
-import mir.ndslice.slice;
+import mir.ndslice.slice : Slice, makeSlice, slice;
 import mir.glas.l3 : gemm;
+import mir.internal.utility : isVector;
 
 nothrow @nogc:
 
@@ -218,6 +215,8 @@ in
 }
 body
 {
+    import mir.ndslice.selection : diagonal;
+
     mixin(weightDataPrep);
 
     // w = inv(H' * H + lambda * eye(m)) * H' * y;
@@ -248,6 +247,8 @@ in
 }
 body
 {
+    import mir.ndslice.selection : diagonal;
+
     mixin(weightDataPrep);
 
     // w = inv(H' * H + diag(lambdas)) * H' * y;
@@ -267,14 +268,19 @@ buffers, and aliases standard data members to known names.
 +/
 enum weightDataPrep = q{
 
+    import std.experimental.allocator.mallocator : AlignedMallocator;
+    import mir.ndslice.iteration : transposed;
+
+    alias allocator = AlignedMallocator.instance;
+
     // Work buffers
-    auto Abuf = makeSlice!T(AlignedMallocator.instance, [design.length!1, design.length!1]);
-    auto Htybuf = makeSlice!T(AlignedMallocator.instance, [design.length!1, values.length!1]);
+    auto Abuf = makeSlice!T(allocator, [design.length!1, design.length!1]);
+    auto Htybuf = makeSlice!T(allocator.instance, [design.length!1, values.length!1]);
 
     scope(exit)
     {
-        AlignedMallocator.instance.deallocate(Abuf.array);
-        AlignedMallocator.instance.deallocate(Htybuf.array);
+        allocator.instance.deallocate(Abuf.array);
+        allocator.instance.deallocate(Htybuf.array);
     }
 
     alias y = values;

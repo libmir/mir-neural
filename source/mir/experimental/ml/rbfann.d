@@ -51,8 +51,6 @@ private:
 
 public:
 
-    @disable this();
-
     /++
     Default constructor of the model.
 
@@ -60,7 +58,7 @@ public:
         radius = Radius value of radial basis function, used in both training, and fitting.
         lambda = Regularization parameter.
     +/
-    this(T radius = 1.0, T lambda = 1e-4)
+    this(T radius, T lambda = 1e-4)
     in
     {
         assert(radius > 0.0, "Radius value has to be larger than 0.");
