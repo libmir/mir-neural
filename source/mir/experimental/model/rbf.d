@@ -1,9 +1,12 @@
 module mir.experimental.model.rbf;
 
 import std.traits : isFloatingPoint;
+import std.experimental.allocator.mallocator : AlignedMallocator;
 
 import ldc.attributes : fastmath;
 
+import mir.ndslice.iteration : transposed;
+import mir.ndslice.selection : diagonal;
 import mir.internal.utility : isVector;
 import mir.ndslice.slice;
 import mir.glas.l3 : gemm;
@@ -141,6 +144,36 @@ body
 }
 
 /++
+Most basic algorithm for weights calculation.
+
+Params:
+    values = Input values, used to build design matrix (m-by-n).
+    design = Design matrix. (n-by-p, where p is point dimensionality of centers).
+    weights = Output weight matrix (m-by-n);
++/
+void basicWeights(T)
+(
+    Slice!(2, const(T)*) values,
+    Slice!(2, const(T)*) design,
+    Slice!(2, T*) weights
+)
+in
+{
+    assert(weights.shape == values.shape);
+}
+body
+{
+    mixin(weightDataPrep);
+
+    // w = inv(H' * H ) * H' * y;
+
+    gemm(1.0, Ht, H, 0.0, A);
+    invert(A);
+    gemm(1.0, Ht, y, 0.0, Hty);
+    gemm(1.0, A, Hty, 0.0, w);
+}
+
+/++
 Calculate weights using global ridge regression method with given regularization value.
 
 Params:
@@ -163,9 +196,59 @@ in
 }
 body
 {
-    import std.experimental.allocator.mallocator : AlignedMallocator;
-    import mir.ndslice.iteration : transposed;
-    import mir.ndslice.selection : diagonal;
+    mixin(weightDataPrep);
+
+    // w = inv(H' * H + lambda * eye(m)) * H' * y;
+
+    gemm(1.0, Ht, H, 0.0, A);
+    A.diagonal[] += lambda;
+    invert(A);
+    gemm(1.0, Ht, y, 0.0, Hty);
+    gemm(1.0, A, Hty, 0.0, w);
+}
+
+/++
+Calculate weights using local ridge regression method with given regularization values.
+
+Params:
+    values = Input values, used to build design matrix (m-by-n).
+    design = Design matrix. (n-by-p, where p is point dimensionality of centers).
+    lambdas = Regularization parameters. Vector of floats of size p.
+    weights = Output weight matrix (m-by-n);
++/
+
+void ridgeLocalWeights(T)
+(
+    Slice!(2, const(T)*) values,
+    Slice!(2, const(T)*) design,
+    Slice!(1, const(T)*) lambdas,
+    Slice!(2, T*) weights
+)
+in
+{
+    assert(weights.shape == values.shape);
+    assert(lambdas.length == design.length!1);
+}
+body
+{
+    mixin(weightDataPrep);
+
+    // w = inv(H' * H + diag(lambdas)) * H' * y;
+
+    gemm(1.0, Ht, H, 0.0, A);
+    A.diagonal[] += lambdas[];
+    invert(A);
+    gemm(1.0, Ht, y, 0.0, Hty);
+    gemm(1.0, A, Hty, 0.0, w);
+}
+
+private:
+
+/+
+Mixin string for weight calculation functions - allocates work
+buffers, and aliases standard data members to known names.
++/
+enum weightDataPrep = q{
 
     // Work buffers
     auto Abuf = makeSlice!T(AlignedMallocator.instance, [design.length!1, design.length!1]);
@@ -183,17 +266,7 @@ body
     auto Ht = H.transposed;
     auto A = Abuf.slice;
     auto Hty = Htybuf.slice;
-
-    // w = inv(H' * H + lambda * eye(m)) * H' * y;
-
-    gemm(1.0, Ht, H, 0.0, A);
-    A.diagonal[] += lambda;
-    invert(A);
-    gemm(1.0, Ht, y, 0.0, Hty);
-    gemm(1.0, A, Hty, 0.0, w);
-}
-
-private:
+};
 
 // Invert matrix - wraps scid.linalg.invert
 void invert(T)(Slice!(2, T*) matrix)
