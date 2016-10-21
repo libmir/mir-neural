@@ -14,37 +14,93 @@ import mir.glas.l3 : gemm;
 nothrow @nogc:
 
 // Radial basis functions.
-pure @fastmath
+pure @safe @fastmath
 {
     /// Gaussian radial basis function.
-    T gaussian(T)(T d, T r) if (isFloatingPoint!T)
+    T gaussian(T = double)(T d, T r) if (isFloatingPoint!T)
     {
         import ldc.intrinsics : exp = llvm_exp;
+
         return exp(-d / (r * r));
     }
     /// Cauchy radial basis function.
-    T cauchy(T)(T d, T r) if (isFloatingPoint!T)
+    T cauchy(T = double)(T d, T r) if (isFloatingPoint!T)
     {
         return T(1.0) / (d / (r * r) + T(1.0));
     }
     /// Multiquadric radial basis function.
-    T multiquadric(T)(T d, T r) if (isFloatingPoint!T)
+    T multiquadric(T = double)(T d, T r) if (isFloatingPoint!T)
     {
         import ldc.intrinsics : sqrt = llvm_sqrt;
+
         return sqrt((d / (r * r)) + T(1.0));
     }
     /// Inverse multiquadric radial basis function.
-    T inverseMultiquadric(T)(T d, T r) if (isFloatingPoint!T)
+    T inverseMultiquadric(T = double)(T d, T r) if (isFloatingPoint!T)
     {
         import ldc.intrinsics : sqrt = llvm_sqrt;
+
         return T(1.0) / sqrt((d / (r * r)) + T(1.0));
     }
     /// Thin plate splines
-    T thinPlates(T)(T d, T r) if (isFloatingPoint!T)
+    T thinPlates(T = double)(T d, T r) if (isFloatingPoint!T)
     {
         import ldc.intrinsics : log = llvm_log;
+
         return (d <= 0.0) ? 0.0 : r * r * log(r / d);
     }
+}
+
+// Check if given function has required radial basis function interface.
+package(mir) template hasRbfInterface(alias fun)
+{
+    import std.traits : isSomeFunction, isFloatingPoint, ReturnType, allSatisfy, functionAttributes,
+        FunctionAttribute, Parameters;
+
+    alias FA = FunctionAttribute;
+
+    enum hasRbfInterface = (isSomeFunction!fun && isFloatingPoint!(ReturnType!fun)
+                && Parameters!fun.length == 2 && allSatisfy!(isFloatingPoint, Parameters!fun)
+                && functionAttributes!fun & FA.pure_ && functionAttributes!fun & FA.safe);
+}
+
+nothrow @nogc @safe pure unittest
+{
+    import std.meta : AliasSeq;
+    import std.traits : allSatisfy;
+
+    alias RBFs = AliasSeq!
+    (
+        gaussian!float, cauchy!float, multiquadric!float, inverseMultiquadric!float, thinPlates!float,
+        gaussian!double, cauchy!double, multiquadric!double, inverseMultiquadric!double, thinPlates!double,
+        gaussian!real, cauchy!real, multiquadric!real, inverseMultiquadric!real, thinPlates!real
+    );
+
+    // should these be static asserts?
+    assert(allSatisfy!(hasRbfInterface, RBFs));
+
+    void nonRbf1()
+    {
+    }
+
+    float nonRbf2(float)
+    {
+        return float.init;
+    }
+
+    int nonRbf3(int)
+    {
+        return int.init;
+    }
+
+    void nonRbf4(float, float)
+    {
+    }
+
+    assert(!hasRbfInterface!nonRbf1);
+    assert(!hasRbfInterface!nonRbf2);
+    assert(!hasRbfInterface!nonRbf3);
+    assert(!hasRbfInterface!nonRbf4);
 }
 
 /++
@@ -58,18 +114,12 @@ Params:
         radius per center. In vector case must be size of p.
     design = Output design matrix (m-by-n).
 +/
-void designRbf(alias rbf, T, Radii)
-(
-    Slice!(2, const(T)*) centers,
-    Slice!(2, const(T)*) data,
-    Radii radii,
-    Slice!(2, T*) design
-)
+void designRbf(alias rbf, T, Radii)(Slice!(2, const(T)*) centers, Slice!(2, const(T)*) data,
+        Radii radii, Slice!(2, T*) design) if (hasRbfInterface!rbf)
 in
 {
     assert(data.length!1 == centers.length!1, "Input data and centers have to be of same dimension.");
-    assert(design.shape == [centers.length, data.length], 
-            "Design matrix size is invalid.");
+    assert(design.shape == [centers.length, data.length], "Design matrix size is invalid.");
 
     static if (isVector!Radii)
         assert(radii.length == center.length, "Radii count must be equal to the count of centers.");
@@ -77,10 +127,10 @@ in
 body
 {
     import mir.ndslice.iteration : transposed;
+
     static if (isVector!Radii)
     {
-        static assert(isFloatingPoint!(ElementType!Radii),
-                "Radius data have to be floating points.");
+        static assert(isFloatingPoint!(ElementType!Radii), "Radius data have to be floating points.");
         auto r = radii.front;
         enum radius = `r.front`;
         enum popRadii = `r.popFront`;
@@ -93,7 +143,7 @@ body
     }
 
     auto dt = design.transposed; // column-wise iteration
-    for(; !data.empty; data.popFront, dt.popFront)
+    for (; !data.empty; data.popFront, dt.popFront)
     {
         designRbf!rbf(centers, data.front, mixin(radius), dt.front);
         mixin(popRadii);
@@ -103,13 +153,8 @@ body
 /++
 Calculate single column of RBF design matrix.
 +/
-void designRbf(alias rbf, T, R)
-(
-    Slice!(2, const(T)*) center,
-    Slice!(1, const(T)*) data,
-    R radius,
-    Slice!(1, T*) design
-)
+void designRbf(alias rbf, T, R)(Slice!(2, const(T)*) center, Slice!(1, const(T)*) data, R radius,
+        Slice!(1, T*) design) if (hasRbfInterface!rbf)
 in
 {
     assert(design.length == center.length);
@@ -128,7 +173,7 @@ body
     T r; // design result temp
     T d; // distance temp
 
-    for(; !h.empty; h.popFront, x.popFront)
+    for (; !h.empty; h.popFront, x.popFront)
     {
         auto xr = x.front;
         r = T(0);
@@ -151,12 +196,7 @@ Params:
     design = Design matrix. (n-by-p, where p is point dimensionality of centers).
     weights = Output weight matrix (m-by-n);
 +/
-void basicWeights(T)
-(
-    Slice!(2, const(T)*) values,
-    Slice!(2, const(T)*) design,
-    Slice!(2, T*) weights
-)
+void basicWeights(T)(Slice!(2, const(T)*) values, Slice!(2, const(T)*) design, Slice!(2, T*) weights)
 in
 {
     assert(weights.shape == values.shape);
@@ -183,13 +223,7 @@ Params:
     weights = Output weight matrix (m-by-n);
 +/
 
-void ridgeGlobalWeights(T)
-(
-    Slice!(2, const(T)*) values,
-    Slice!(2, const(T)*) design,
-    T lambda,
-    Slice!(2, T*) weights
-)
+void ridgeGlobalWeights(T)(Slice!(2, const(T)*) values, Slice!(2, const(T)*) design, T lambda, Slice!(2, T*) weights)
 in
 {
     assert(weights.shape == values.shape);
@@ -217,13 +251,8 @@ Params:
     weights = Output weight matrix (m-by-n);
 +/
 
-void ridgeLocalWeights(T)
-(
-    Slice!(2, const(T)*) values,
-    Slice!(2, const(T)*) design,
-    Slice!(1, const(T)*) lambdas,
-    Slice!(2, T*) weights
-)
+void ridgeLocalWeights(T)(Slice!(2, const(T)*) values, Slice!(2, const(T)*) design, Slice!(1,
+        const(T)*) lambdas, Slice!(2, T*) weights)
 in
 {
     assert(weights.shape == values.shape);
@@ -272,14 +301,13 @@ enum weightDataPrep = q{
 void invert(T)(Slice!(2, T*) m) @nogc nothrow
 in
 {
-    assert (m.length!0 == m.length!1, "invert: can only invert square matrices");
+    assert(m.length!0 == m.length!1, "invert: can only invert square matrices");
 }
 body
 {
     import std.experimental.allocator.mallocator : Mallocator;
 
     alias allocator = Mallocator.instance;
-
 
     static if (is(T == float))
     {
@@ -310,10 +338,10 @@ body
     assert(lwork > 0);
 
     // Allocate workspace memory.
-    int* ipiv = cast(int*) allocator.allocate(l*int.sizeof);
-    T* work = cast(T*) allocator.allocate(lwork*T.sizeof);
+    int* ipiv = cast(int*)allocator.allocate(l * int.sizeof);
+    T* work = cast(T*)allocator.allocate(lwork * T.sizeof);
 
-    scope(exit)
+    scope (exit)
     {
         allocator.deallocate(cast(void[])ipiv[0 .. l]);
         allocator.deallocate(cast(void[])work[0 .. lwork]);
@@ -322,13 +350,13 @@ body
     getrf(&l, &l, m.ptr, &l, ipiv, &info);
     getri(&l, m.ptr, &l, ipiv, work, &lwork, &info);
 
-    assert (info >= 0);
+    assert(info >= 0);
     return;
 }
 
-extern(C) nothrow @nogc:
+extern (C) nothrow @nogc:
 
-void sgetrf_(int *m, int *n, float *a, int *lda, int *ipiv, int *info);
-void dgetrf_(int *m, int *n, double *a, int *lda, int *ipiv, int *info);
-void sgetri_(int *n, float *a, int *lda, int *ipiv, float *work, int *lwork, int *info);
-void dgetri_(int *n, double *a, int *lda, int *ipiv, double *work, int *lwork, int *info);
+void sgetrf_(int* m, int* n, float* a, int* lda, int* ipiv, int* info);
+void dgetrf_(int* m, int* n, double* a, int* lda, int* ipiv, int* info);
+void sgetri_(int* n, float* a, int* lda, int* ipiv, float* work, int* lwork, int* info);
+void dgetri_(int* n, double* a, int* lda, int* ipiv, double* work, int* lwork, int* info);

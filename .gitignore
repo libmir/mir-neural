@@ -7,3 +7,4 @@ dub.selections.json
 dub.userprefs
 mir_rbf
 mir.experimental.model.rbf
+__test__library__

@@ -35,8 +35,8 @@ Params:
 See:
     mir.experimental.model.rbf
 +/
-struct RbfNetwork(T = double, alias rbf = gaussian)
-    if (isFloatingPoint!T)
+struct RbfNetwork(T = double, alias rbf = gaussian!T)
+    if (isFloatingPoint!T && hasRbfInterface!rbf)
 {
 private:
 
