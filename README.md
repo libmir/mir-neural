@@ -1,2 +1,2 @@
-# mir.experimental.model.rbf
-RBF neural network model, for inclusion to Mir
+# Mir Neural
+Development project for Mir Machine Learning modules.

@@ -1,15 +1,19 @@
 {
-    "name": "mir.experimental.model.rbf",
+    "name": "mir-neural",
     "authors": [
         "Relja Ljubobratovic"
     ],
-    "description": "A minimal D application.",
+    "description": "Mir machine learning modules.",
     "copyright": "Copyright © 2016, Relja Ljubobratovic",
-    "dflags-ldc": ["-mcpu=native"],
+	"license": "BSL-1.0",
     "dependencies": {
-        "mir": "~>0.20.0",
-        "dcv": "~master",
-        "ggplotd": "0.9.4"
+        "mir": "~>0.20.2"
     },
+    "configurations": [
+        {
+            "name": "library",
+            "targetType": "library"
+        }
+    ],
     "libs": ["lapack"]
 }

@@ -1,19 +1,20 @@
+#!/usr/bin/env dub
+/+ dub.json:
+{
+    "name": "rbf-demo",
+    "dependencies": {
+        "mir-neural": {
+            "path" : "../" 
+        },
+        "dcv": "~>0.1.3",
+        "ggplotd": "~>0.9.4"
+    }
+}
++/
 import std.stdio;
-import std.range;
-import std.algorithm;
-import std.random;
-import std.math;
 
-import mir.ndslice;
-import mir.ndslice.iteration;
-import mir.ndslice.algorithm;
+import mir.ndslice.slice;
 import mir.glas;
-
-import ggplotd.aes;
-import ggplotd.geom;
-import ggplotd.ggplotd;
-
-import mir.glas.l3 : gemm;
 
 import dcv.core;
 import dcv.io;
@@ -28,6 +29,9 @@ void modelExample()
     /*
     Demonstrates rbf model - low-level api.
     */
+
+    import mir.glas.l1 : gemm;
+
     alias rbf = gaussian!double;
 
     auto radius = 2.5; // function radius
@@ -61,6 +65,12 @@ void modelExample()
 
     // training
     designRbf!rbf(x, x, radius, H);
+
+    double err;
+    estimateRidgeGlobalRegularization(H, y, 10e-5, 100, ErrorPredictionModel.UEV, lambda, err);
+
+    writeln([lambda, err]);
+
     ridgeGlobalWeights(y, H, lambda, w);
 
     // estimation (interpolation)
@@ -81,6 +91,12 @@ void networkExample_1d()
     afterwards fit a generic linear space to trained model, and analyze results.
     */
 
+    import std.random;
+
+    import ggplotd.aes;
+    import ggplotd.geom;
+    import ggplotd.ggplotd;
+
     alias Vector = Slice!(1, double*);
     alias AesPointType = Aes!(Vector, "x", Vector, "y");
     alias AesLineType = Aes!(Vector, "x", Vector, "y", string[], "colour");
@@ -89,8 +105,8 @@ void networkExample_1d()
     auto pt = 500; // number of fitting(evaluation) data nodes.
 
     auto sigma = 0.005; // noise amount in generated training data
-    auto radius = 0.5; // function radius
-    auto lambda = 1e-4; // regularization parameter
+    auto radius = 0.3; // function radius
+    auto lambda = 0.01; // regularization parameter
 
     // Create training data
     auto x = iota(p).map!(i => 1.0 - uniform(0.0, 1.0)).array.sliced(p);
@@ -167,7 +183,7 @@ void networkExample_nd()
 }
 void main(string[] args)
 {
-    modelExample();
+    //modelExample();
     networkExample_1d();
-    networkExample_nd();
+    //networkExample_nd();
 }
