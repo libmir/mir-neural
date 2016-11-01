@@ -8,3 +8,4 @@ dub.userprefs
 mir_rbf
 mir.experimental.model.rbf
 __test__library__
+libmir-neural.a
