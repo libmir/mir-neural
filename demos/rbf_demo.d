@@ -3,25 +3,28 @@
 {
     "name": "rbf-demo",
     "dependencies": {
+        "imageformats": "~>6.1.0",
         "mir-neural": {
             "path" : "../" 
         },
-        "dcv": "~>0.1.3",
         "ggplotd": "~>0.9.4"
-    }
+    },
+    "ldflags": ["-defaultlib=libphobos2.so"]
 }
 +/
+
 import std.stdio;
+import std.array : array;
+import std.math : sin;
+import std.range : iota, lockstep;
+import std.algorithm.iteration : map;
 
-import mir.ndslice.slice;
-import mir.glas;
-
-import dcv.core;
-import dcv.io;
-import dcv.plot;
+import mir.ndslice;
 
 import mir.experimental.model.rbf;
 import mir.experimental.ml.rbfann;
+
+import imageformats : write_image;
 
 
 void modelExample()
@@ -30,7 +33,7 @@ void modelExample()
     Demonstrates rbf model - low-level api.
     */
 
-    import mir.glas.l1 : gemm;
+    import mir.glas.l3 : gemm;
 
     alias rbf = gaussian!double;
 
@@ -65,12 +68,6 @@ void modelExample()
 
     // training
     designRbf!rbf(x, x, radius, H);
-
-    double err;
-    estimateRidgeGlobalRegularization(H, y, 10e-5, 100, ErrorPredictionModel.UEV, lambda, err);
-
-    writeln([lambda, err]);
-
     ridgeGlobalWeights(y, H, lambda, w);
 
     // estimation (interpolation)
@@ -78,8 +75,8 @@ void modelExample()
     gemm(1.0, Hq, w, 0.0, r);
 
     // show results
-    r.reshape(500, 500, 3).ndMap!(v => cast(ubyte)v).slice.imshow();
-    waitKey();
+    auto image = r.reshape(500, 500, 3).ndMap!(v => cast(ubyte)v).slice;
+    write_image("rbf_model_example.png", image.length!1, image.length!0, image.ptr[0 .. image.elementsCount]);
 }
 
 void networkExample_1d()
@@ -179,11 +176,12 @@ void networkExample_nd()
     // fit query data to trained network.
     auto ft = network.fit(q.reshape(500*500, 2));
 
-    auto image = ft.reshape(500, 500, 3).ndMap!(v => cast(ubyte)v).slice.imwrite(ImageFormat.IF_RGB, "rbf_color_interpolation.png");
+    auto image = ft.reshape(500, 500, 3).ndMap!(v => cast(ubyte)v).slice;
+    write_image("rbf_nd_example.png", image.length!1, image.length!0, image.ptr[0 .. image.elementsCount]);
 }
 void main(string[] args)
 {
-    //modelExample();
+    modelExample();
     networkExample_1d();
-    //networkExample_nd();
+    networkExample_nd();
 }
