@@ -118,13 +118,6 @@ public:
         auto H = slice!T(x.length, x.length);
 
         designRbf!rbf(x, x, _radius, H);
-
-        T err;
-        estimateRidgeGlobalRegularization(H, y, 10e+3, 100, ErrorPredictionModel.BIC, _lambda, err);
-
-        import std.stdio;
-        writeln([_lambda, err]);
-
         ridgeGlobalWeights(y, H, _lambda, _weights);
 
         return this;
