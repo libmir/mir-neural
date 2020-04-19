@@ -1,0 +1,29 @@
+langauge: d
+d:
+ - ldc
+ - ldc-beta
+ - dmd-nighty
+ - dmd-beta
+ - dmd
+branch:
+ only:
+  - master
+
+env:
+ - ARCH="x86"
+ - ARCH="x86_64"
+addons:
+ apt:
+  package:
+   - gcc-multilib
+
+matrix:
+ allow_failures:
+  - {d: dmd-nightly}
+  - {d: ldc-beta}
+  - {d: gdc}
+
+script:
+ - echo "$ARCH"
+ - dub test --arch "$ARCH" --build=unittest-cov
+
